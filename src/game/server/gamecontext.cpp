@@ -6,6 +6,7 @@
 #include "teeinfo.h"
 #include <antibot/antibot_data.h>
 #include <base/math.h>
+#include <cstring>
 #include <engine/console.h>
 #include <engine/engine.h>
 #include <engine/map.h>
@@ -18,7 +19,6 @@
 #include <game/collision.h>
 #include <game/gamecore.h>
 #include <game/version.h>
-#include <string.h>
 
 #include <game/generated/protocol7.h>
 #include <game/generated/protocolglue.h>
@@ -58,7 +58,10 @@ void CGameContext::Construct(int Resetting)
 	m_NumVoteMutes = 0;
 
 	if(Resetting == NO_RESET)
+	{
+		m_NonEmptySince = 0;
 		m_pVoteOptionHeap = new CHeap();
+	}
 
 	m_ChatResponseTargetID = -1;
 	m_aDeleteTempfile[0] = 0;
@@ -645,8 +648,8 @@ void CGameContext::SendVoteStatus(int ClientID, int Total, int Yes, int No)
 
 	if(Total > VANILLA_MAX_CLIENTS && m_apPlayers[ClientID] && m_apPlayers[ClientID]->GetClientVersion() <= VERSION_DDRACE)
 	{
-		Yes = float(Yes) * VANILLA_MAX_CLIENTS / float(Total);
-		No = float(No) * VANILLA_MAX_CLIENTS / float(Total);
+		Yes = float(Yes * VANILLA_MAX_CLIENTS) / float(Total);
+		No = float(No * VANILLA_MAX_CLIENTS) / float(Total);
 		Total = VANILLA_MAX_CLIENTS;
 	}
 
@@ -3355,7 +3358,6 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 			if(Index >= ENTITY_OFFSET)
 			{
 				vec2 Pos(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
-				//m_pController->OnEntity(Index-ENTITY_OFFSET, Pos);
 				m_pController->OnEntity(Index - ENTITY_OFFSET, Pos, LAYER_GAME, pTiles[y * pTileMap->m_Width + x].m_Flags);
 			}
 
@@ -3870,7 +3872,7 @@ void CGameContext::Whisper(int ClientID, char *pStr)
 
 		pName = pStr;
 		char *pDst = pStr; // we might have to process escape data
-		while(1)
+		while(true)
 		{
 			if(pStr[0] == '"')
 			{
@@ -3909,7 +3911,7 @@ void CGameContext::Whisper(int ClientID, char *pStr)
 	else
 	{
 		pName = pStr;
-		while(1)
+		while(true)
 		{
 			if(pStr[0] == 0)
 			{
