@@ -276,8 +276,8 @@ void CGameClient::OnInit()
 
 	m_DDRaceMsgSent[0] = false;
 	m_DDRaceMsgSent[1] = false;
-	m_ShowOthers[0] = -1;
-	m_ShowOthers[1] = -1;
+	m_ShowOthers[0] = SHOW_OTHERS_NOT_SET;
+	m_ShowOthers[1] = SHOW_OTHERS_NOT_SET;
 	m_SwitchStateTeam[0] = -1;
 	m_SwitchStateTeam[1] = -1;
 
@@ -511,8 +511,8 @@ void CGameClient::OnReset()
 	m_Teams.Reset();
 	m_DDRaceMsgSent[0] = false;
 	m_DDRaceMsgSent[1] = false;
-	m_ShowOthers[0] = -1;
-	m_ShowOthers[1] = -1;
+	m_ShowOthers[0] = SHOW_OTHERS_NOT_SET;
+	m_ShowOthers[1] = SHOW_OTHERS_NOT_SET;
 
 	m_LastZoom = .0;
 	m_LastScreenAspect = .0;
@@ -654,7 +654,7 @@ void CGameClient::OnRender()
 void CGameClient::OnDummyDisconnect()
 {
 	m_DDRaceMsgSent[1] = false;
-	m_ShowOthers[1] = -1;
+	m_ShowOthers[1] = SHOW_OTHERS_NOT_SET;
 	m_LastNewPredictedTick[1] = -1;
 	m_PredictedDummyID = -1;
 }
@@ -918,8 +918,13 @@ void CGameClient::ProcessEvents()
 		else if(Item.m_Type == NETEVENTTYPE_SOUNDWORLD)
 		{
 			CNetEvent_SoundWorld *ev = (CNetEvent_SoundWorld *)pData;
-			if(g_Config.m_SndGame && (ev->m_SoundID != SOUND_GUN_FIRE || g_Config.m_SndGun) && (ev->m_SoundID != SOUND_PLAYER_PAIN_LONG || g_Config.m_SndLongPain))
-				m_Sounds.PlayAt(CSounds::CHN_WORLD, ev->m_SoundID, 1.0f, vec2(ev->m_X, ev->m_Y));
+			if(!Config()->m_SndGame)
+				continue;
+
+			if(m_GameInfo.m_RaceSounds && ((ev->m_SoundID == SOUND_GUN_FIRE && !g_Config.m_SndGun) || (ev->m_SoundID == SOUND_PLAYER_PAIN_LONG && !g_Config.m_SndLongPain)))
+				continue;
+
+			m_Sounds.PlayAt(CSounds::CHN_WORLD, ev->m_SoundID, 1.0f, vec2(ev->m_X, ev->m_Y));
 		}
 	}
 }
@@ -996,6 +1001,7 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 	Info.m_UnlimitedAmmo = Race;
 	Info.m_DDRaceRecordMessage = DDRace && !DDNet;
 	Info.m_RaceRecordMessage = DDNet || (Race && !DDRace);
+	Info.m_RaceSounds = DDRace || FNG;
 	Info.m_AllowEyeWheel = DDRace || BlockWorlds || City || Plus;
 	Info.m_AllowHookColl = DDRace;
 	Info.m_AllowZoom = Race || BlockWorlds || City;
@@ -1245,6 +1251,12 @@ void CGameClient::OnNewSnapshot()
 					m_aClients[Item.m_ID].m_Afk = pInfo->m_Flags & EXPLAYERFLAG_AFK;
 					m_aClients[Item.m_ID].m_Paused = pInfo->m_Flags & EXPLAYERFLAG_PAUSED;
 					m_aClients[Item.m_ID].m_Spec = pInfo->m_Flags & EXPLAYERFLAG_SPEC;
+
+					if(Item.m_ID == m_Snap.m_LocalClientID && (m_aClients[Item.m_ID].m_Paused || m_aClients[Item.m_ID].m_Spec))
+					{
+						m_Snap.m_SpecInfo.m_Active = true;
+						m_Snap.m_SpecInfo.m_SpectatorID = SPEC_FREEVIEW;
+					}
 				}
 			}
 			else if(Item.m_Type == NETOBJTYPE_CHARACTER)
@@ -1605,7 +1617,7 @@ void CGameClient::OnNewSnapshot()
 		m_DDRaceMsgSent[i] = true;
 	}
 
-	if(m_ShowOthers[g_Config.m_ClDummy] == -1 || (m_ShowOthers[g_Config.m_ClDummy] != -1 && m_ShowOthers[g_Config.m_ClDummy] != g_Config.m_ClShowOthers))
+	if(m_ShowOthers[g_Config.m_ClDummy] == SHOW_OTHERS_NOT_SET || (m_ShowOthers[g_Config.m_ClDummy] != SHOW_OTHERS_NOT_SET && m_ShowOthers[g_Config.m_ClDummy] != g_Config.m_ClShowOthers))
 	{
 		{
 			CNetMsg_Cl_ShowOthers Msg;
@@ -2591,7 +2603,7 @@ bool CGameClient::IsOtherTeam(int ClientID)
 
 	if(m_Snap.m_LocalClientID < 0)
 		return false;
-	else if((m_aClients[m_Snap.m_LocalClientID].m_Team == TEAM_SPECTATORS && m_Snap.m_SpecInfo.m_SpectatorID == SPEC_FREEVIEW) || ClientID < 0)
+	else if((m_Snap.m_SpecInfo.m_Active && m_Snap.m_SpecInfo.m_SpectatorID == SPEC_FREEVIEW) || ClientID < 0)
 		return false;
 	else if(m_Snap.m_SpecInfo.m_Active && m_Snap.m_SpecInfo.m_SpectatorID != SPEC_FREEVIEW)
 	{
@@ -2747,7 +2759,7 @@ void CGameClient::LoadGameSkin(const char *pPath, bool AsDir)
 		else
 			LoadGameSkin(pPath, true);
 	}
-	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_HEALTH_FULL].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_HEALTH_FULL].m_pSet->m_Gridy, true))
+	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_HEALTH_FULL].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_HEALTH_FULL].m_pSet->m_Gridy, true) && Graphics()->IsImageFormatRGBA(aPath, ImgInfo))
 	{
 		m_GameSkin.m_SpriteHealthFull = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_HEALTH_FULL]);
 		m_GameSkin.m_SpriteHealthEmpty = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_HEALTH_EMPTY]);
@@ -2900,7 +2912,7 @@ void CGameClient::LoadEmoticonsSkin(const char *pPath, bool AsDir)
 		else
 			LoadEmoticonsSkin(pPath, true);
 	}
-	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_OOP].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_OOP].m_pSet->m_Gridy, true))
+	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_OOP].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_OOP].m_pSet->m_Gridy, true) && Graphics()->IsImageFormatRGBA(aPath, ImgInfo))
 	{
 		for(int i = 0; i < 16; ++i)
 			m_EmoticonsSkin.m_SpriteEmoticons[i] = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_OOP + i]);
@@ -2954,7 +2966,7 @@ void CGameClient::LoadParticlesSkin(const char *pPath, bool AsDir)
 		else
 			LoadParticlesSkin(pPath, true);
 	}
-	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_PART_SLICE].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_PART_SLICE].m_pSet->m_Gridy, true))
+	else if(PngLoaded && Graphics()->CheckImageDivisibility(aPath, ImgInfo, g_pData->m_aSprites[SPRITE_PART_SLICE].m_pSet->m_Gridx, g_pData->m_aSprites[SPRITE_PART_SLICE].m_pSet->m_Gridy, true) && Graphics()->IsImageFormatRGBA(aPath, ImgInfo))
 	{
 		m_ParticlesSkin.m_SpriteParticleSlice = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_SLICE]);
 		m_ParticlesSkin.m_SpriteParticleBall = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PART_BALL]);
@@ -3007,11 +3019,6 @@ void CGameClient::LoadMapSettings()
 	for(int i = 0; i < NUM_TUNEZONES; i++)
 	{
 		TuningList()[i] = TuningParams;
-		TuningList()[i].Set("gun_curvature", 0);
-		TuningList()[i].Set("gun_speed", 1400);
-		TuningList()[i].Set("shotgun_curvature", 0);
-		TuningList()[i].Set("shotgun_speed", 500);
-		TuningList()[i].Set("shotgun_speeddiff", 0);
 	}
 
 	// Load map tunings

@@ -209,14 +209,11 @@ void CVideo::Stop()
 	if(m_pFormatContext)
 		avformat_free_context(m_pFormatContext);
 
-	if(m_pRGB)
-		free(m_pRGB);
+	free(m_pRGB);
 
-	if(m_pPixels)
-		free(m_pPixels);
+	free(m_pPixels);
 
-	if(ms_pCurrentVideo)
-		delete ms_pCurrentVideo;
+	delete ms_pCurrentVideo;
 }
 
 void CVideo::NextVideoFrameThread()
@@ -598,10 +595,10 @@ bool CVideo::AddStream(OutputStream *pStream, AVFormatContext *pOC, const AVCode
 		// m_MixingRate = g_Config.m_SndRate;
 		//
 		// // Set 16-bit stereo audio at 22Khz
-		// Format.freq = g_Config.m_SndRate; // ignore_convention
-		// Format.format = AUDIO_S16; // ignore_convention
-		// Format.channels = 2; // ignore_convention
-		// Format.samples = g_Config.m_SndBufferSize; // ignore_convention
+		// Format.freq = g_Config.m_SndRate;
+		// Format.format = AUDIO_S16;
+		// Format.channels = 2;
+		// Format.samples = g_Config.m_SndBufferSize;
 
 		c->sample_fmt = (*ppCodec)->sample_fmts ? (*ppCodec)->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
 		c->bit_rate = g_Config.m_SndRate * 2 * 16;

@@ -318,7 +318,7 @@ void ReloadBans()
 	m_pConsole->ExecuteFile("master.cfg", -1, true);
 }
 
-int main(int argc, const char **argv) // ignore_convention
+int main(int argc, const char **argv)
 {
 	int64_t LastBuild = 0, LastBanReload = 0;
 	ServerType Type = SERVERTYPE_INVALID;
@@ -347,8 +347,8 @@ int main(int argc, const char **argv) // ignore_convention
 	pConfigManager->Init();
 	m_pConsole->Init();
 	m_NetBan.Init(m_pConsole, pStorage);
-	if(argc > 1) // ignore_convention
-		m_pConsole->ParseArguments(argc - 1, &argv[1]); // ignore_convention
+	if(argc > 1)
+		m_pConsole->ParseArguments(argc - 1, &argv[1]);
 
 	if(g_Config.m_Bindaddr[0] && net_host_lookup(g_Config.m_Bindaddr, &BindAddr, NETTYPE_ALL) == 0)
 	{
@@ -363,13 +363,13 @@ int main(int argc, const char **argv) // ignore_convention
 		BindAddr.port = MASTERSERVER_PORT;
 	}
 
-	if(!m_NetOp.Open(BindAddr, 0))
+	if(!m_NetOp.Open(BindAddr))
 	{
 		dbg_msg("mastersrv", "couldn't start network (op)");
 		return -1;
 	}
 	BindAddr.port = MASTERSERVER_PORT + 1;
-	if(!m_NetChecker.Open(BindAddr, 0))
+	if(!m_NetChecker.Open(BindAddr))
 	{
 		dbg_msg("mastersrv", "couldn't start network (checker)");
 		return -1;

@@ -1607,7 +1607,7 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 	if(Sys)
 	{
 		// system message
-		if(!Dummy && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_MAP_DETAILS)
+		if(Conn == CONN_MAIN && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_MAP_DETAILS)
 		{
 			const char *pMap = Unpacker.GetString(CUnpacker::SANITIZE_CC | CUnpacker::SKIP_START_WHITESPACES);
 			SHA256_DIGEST *pMapSha256 = (SHA256_DIGEST *)Unpacker.GetRaw(sizeof(*pMapSha256));
@@ -1623,7 +1623,7 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 			m_MapDetailsSha256 = *pMapSha256;
 			m_MapDetailsCrc = MapCrc;
 		}
-		else if(!Dummy && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_CAPABILITIES)
+		else if(Conn == CONN_MAIN && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_CAPABILITIES)
 		{
 			if(!m_CanReceiveServerCapabilities)
 			{
@@ -1639,7 +1639,7 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 			m_CanReceiveServerCapabilities = false;
 			m_ServerSentCapabilities = true;
 		}
-		else if(!Dummy && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_MAP_CHANGE)
+		else if(Conn == CONN_MAIN && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_MAP_CHANGE)
 		{
 			if(m_CanReceiveServerCapabilities)
 			{
@@ -1728,7 +1728,7 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 				}
 			}
 		}
-		else if(!Dummy && Msg == NETMSG_MAP_DATA)
+		else if(Conn == CONN_MAIN && Msg == NETMSG_MAP_DATA)
 		{
 			int Last = Unpacker.GetInt();
 			int MapCRC = Unpacker.GetInt();
@@ -1770,11 +1770,11 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 				}
 			}
 		}
-		else if(!Dummy && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_CON_READY)
+		else if(Conn == CONN_MAIN && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_CON_READY)
 		{
 			GameClient()->OnConnected();
 		}
-		else if(Dummy && Msg == NETMSG_CON_READY)
+		else if(Conn == CONN_DUMMY && Msg == NETMSG_CON_READY)
 		{
 			m_DummyConnected = true;
 			g_Config.m_ClDummy = 1;
@@ -1846,17 +1846,20 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 			if(Unpacker.Error() == 0)
 				m_pConsole->DeregisterTemp(pName);
 		}
-		else if(!Dummy && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_RCON_AUTH_STATUS)
+		else if((pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_RCON_AUTH_STATUS)
 		{
 			int Result = Unpacker.GetInt();
 			if(Unpacker.Error() == 0)
-				m_RconAuthed[Dummy] = Result;
-			int Old = m_UseTempRconCommands;
-			m_UseTempRconCommands = Unpacker.GetInt();
-			if(Unpacker.Error() != 0)
-				m_UseTempRconCommands = 0;
-			if(Old != 0 && m_UseTempRconCommands == 0)
-				m_pConsole->DeregisterTempAll();
+				m_RconAuthed[Conn] = Result;
+			if(Conn == CONN_MAIN)
+			{
+				int Old = m_UseTempRconCommands;
+				m_UseTempRconCommands = Unpacker.GetInt();
+				if(Unpacker.Error() != 0)
+					m_UseTempRconCommands = 0;
+				if(Old != 0 && m_UseTempRconCommands == 0)
+					m_pConsole->DeregisterTempAll();
+			}
 		}
 		else if(!Dummy && (pPacket->m_Flags & NET_CHUNKFLAG_VITAL) != 0 && Msg == NETMSG_RCON_LINE)
 		{
@@ -2853,7 +2856,7 @@ void CClient::Run()
 		}
 
 #ifndef CONF_PLATFORM_ANDROID
-		atexit(SDL_Quit); // ignore_convention
+		atexit(SDL_Quit);
 #endif
 	}
 
@@ -2900,7 +2903,7 @@ void CClient::Run()
 		for(unsigned int i = 0; i < sizeof(m_NetClient) / sizeof(m_NetClient[0]); i++)
 		{
 			BindAddr.port = i == CONN_MAIN ? g_Config.m_ClPort : i == CONN_DUMMY ? g_Config.m_ClDummyPort : g_Config.m_ClContactPort;
-			while(BindAddr.port == 0 || !m_NetClient[i].Open(BindAddr, 0))
+			while(BindAddr.port == 0 || !m_NetClient[i].Open(BindAddr))
 			{
 				BindAddr.port = (secure_rand() % 64511) + 1024;
 			}
@@ -3535,13 +3538,18 @@ void CClient::Con_SaveReplay(IConsole::IResult *pResult, void *pUserData)
 		if(Length <= 0)
 			pSelf->m_pConsole->Print(IConsole::OUTPUT_LEVEL_STANDARD, "replay", "ERROR: length must be greater than 0 second.");
 		else
-			pSelf->SaveReplay(Length);
+		{
+			if(pResult->NumArguments() >= 2)
+				pSelf->SaveReplay(Length, pResult->GetString(1));
+			else
+				pSelf->SaveReplay(Length);
+		}
 	}
 	else
 		pSelf->SaveReplay(g_Config.m_ClReplayLength);
 }
 
-void CClient::SaveReplay(const int Length)
+void CClient::SaveReplay(const int Length, const char *pFilename)
 {
 	if(!g_Config.m_ClReplays)
 	{
@@ -3563,7 +3571,11 @@ void CClient::SaveReplay(const int Length)
 		char aDate[64];
 		str_timestamp(aDate, sizeof(aDate));
 
-		str_format(aFilename, sizeof(aFilename), "demos/replays/%s_%s (replay).demo", m_aCurrentMap, aDate);
+		if(str_comp(pFilename, "") == 0)
+			str_format(aFilename, sizeof(aFilename), "demos/replays/%s_%s (replay).demo", m_aCurrentMap, aDate);
+		else
+			str_format(aFilename, sizeof(aFilename), "demos/replays/%s.demo", pFilename);
+
 		char *pSrc = (&m_DemoRecorder[RECORDER_REPLAYS])->GetCurrentFilename();
 
 		// Slice the demo to get only the last cl_replay_length seconds
@@ -4169,7 +4181,7 @@ void CClient::RegisterCommands()
 	m_pConsole->Register("demo_play", "", CFGFLAG_CLIENT, Con_DemoPlay, this, "Play demo");
 	m_pConsole->Register("demo_speed", "i[speed]", CFGFLAG_CLIENT, Con_DemoSpeed, this, "Set demo speed");
 
-	m_pConsole->Register("save_replay", "?i[length]", CFGFLAG_CLIENT, Con_SaveReplay, this, "Save a replay of the last defined amount of seconds");
+	m_pConsole->Register("save_replay", "?i[length] ?s[filename]", CFGFLAG_CLIENT, Con_SaveReplay, this, "Save a replay of the last defined amount of seconds");
 	m_pConsole->Register("benchmark_quit", "i[seconds] r[file]", CFGFLAG_CLIENT | CFGFLAG_STORE, Con_BenchmarkQuit, this, "Benchmark frame times for number of seconds to file, then quit");
 
 	m_pConsole->Chain("cl_timeout_seed", ConchainTimeoutSeed, this);
@@ -4233,14 +4245,14 @@ void CClient::HandleMapPath(const char *pPath)
 */
 
 #if defined(CONF_PLATFORM_MACOS)
-extern "C" int TWMain(int argc, const char **argv) // ignore_convention
+extern "C" int TWMain(int argc, const char **argv)
 #elif defined(CONF_PLATFORM_ANDROID)
 extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char *argv[]);
 extern "C" void InitAndroid();
 
 int SDL_main(int argc, char *argv2[])
 #else
-int main(int argc, const char **argv) // ignore_convention
+int main(int argc, const char **argv)
 #endif
 {
 #if defined(CONF_PLATFORM_ANDROID)
@@ -4250,13 +4262,13 @@ int main(int argc, const char **argv) // ignore_convention
 	bool Silent = false;
 	bool RandInitFailed = false;
 
-	for(int i = 1; i < argc; i++) // ignore_convention
+	for(int i = 1; i < argc; i++)
 	{
-		if(str_comp("-s", argv[i]) == 0 || str_comp("--silent", argv[i]) == 0) // ignore_convention
+		if(str_comp("-s", argv[i]) == 0 || str_comp("--silent", argv[i]) == 0)
 		{
 			Silent = true;
 		}
-		else if(str_comp("-c", argv[i]) == 0 || str_comp("--console", argv[i]) == 0) // ignore_convention
+		else if(str_comp("-c", argv[i]) == 0 || str_comp("--console", argv[i]) == 0)
 		{
 #if defined(CONF_FAMILY_WINDOWS)
 			AllocConsole();
@@ -4266,6 +4278,10 @@ int main(int argc, const char **argv) // ignore_convention
 
 #if defined(CONF_PLATFORM_ANDROID)
 	InitAndroid();
+#endif
+
+#if defined(CONF_EXCEPTION_HANDLING)
+	init_exception_handler();
 #endif
 
 	if(secure_random_init() != 0)
@@ -4283,7 +4299,7 @@ int main(int argc, const char **argv) // ignore_convention
 	// create the components
 	IEngine *pEngine = CreateEngine(GAME_NAME, Silent, 2);
 	IConsole *pConsole = CreateConsole(CFGFLAG_CLIENT);
-	IStorage *pStorage = CreateStorage("Teeworlds", IStorage::STORAGETYPE_CLIENT, argc, (const char **)argv); // ignore_convention
+	IStorage *pStorage = CreateStorage("Teeworlds", IStorage::STORAGETYPE_CLIENT, argc, (const char **)argv);
 	IConfigManager *pConfigManager = CreateConfigManager();
 	IEngineSound *pEngineSound = CreateEngineSound();
 	IEngineInput *pEngineInput = CreateEngineInput();
@@ -4291,6 +4307,16 @@ int main(int argc, const char **argv) // ignore_convention
 	IEngineMap *pEngineMap = CreateEngineMap();
 	IDiscord *pDiscord = CreateDiscord();
 	ISteam *pSteam = CreateSteam();
+
+#if defined(CONF_EXCEPTION_HANDLING)
+	char aBuf[IO_MAX_PATH_LENGTH];
+	char aBufName[IO_MAX_PATH_LENGTH];
+	char aDate[64];
+	str_timestamp(aDate, sizeof(aDate));
+	str_format(aBufName, sizeof(aBufName), "dumps/" GAME_NAME "_crash_log_%d_%s.RTP", pid(), aDate);
+	pStorage->GetCompletePath(IStorage::TYPE_SAVE, aBufName, aBuf, sizeof(aBuf));
+	set_exception_handler_log_file(aBuf);
+#endif
 
 	if(RandInitFailed)
 	{
@@ -4394,8 +4420,8 @@ int main(int argc, const char **argv) // ignore_convention
 		pClient->HandleDemoPath(argv[1]);
 	else if(argc == 2 && str_endswith(argv[1], ".map"))
 		pClient->HandleMapPath(argv[1]);
-	else if(argc > 1) // ignore_convention
-		pConsole->ParseArguments(argc - 1, (const char **)&argv[1]); // ignore_convention
+	else if(argc > 1)
+		pConsole->ParseArguments(argc - 1, (const char **)&argv[1]);
 
 	if(pSteam->GetConnectAddress())
 	{
@@ -4491,7 +4517,8 @@ void CClient::RequestDDNetInfo()
 		str_append(aUrl, aEscaped, sizeof(aUrl));
 	}
 
-	m_pDDNetInfoTask = std::make_shared<CGetFile>(Storage(), aUrl, m_aDDNetInfoTmp, IStorage::TYPE_SAVE, CTimeout{10000, 500, 10});
+	// Use ipv4 so we can know the ingame ip addresses of players before they join game servers
+	m_pDDNetInfoTask = std::make_shared<CGetFile>(Storage(), aUrl, m_aDDNetInfoTmp, IStorage::TYPE_SAVE, CTimeout{10000, 500, 10}, HTTPLOG::ALL, IPRESOLVE::V4);
 	Engine()->AddJob(m_pDDNetInfoTask);
 }
 

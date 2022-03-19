@@ -213,7 +213,9 @@ int CMenus::DoButton_Menu(const void *pID, const char *pText, int Checked, const
 
 	Text.HMargin(pRect->h >= 20.0f ? 2.0f : 1.0f, &Text);
 	Text.HMargin((Text.h * FontFactor) / 2.0f, &Text);
-	UI()->DoLabel(&Text, pText, Text.h * CUI::ms_FontmodHeight, TEXTALIGN_CENTER, -1, AlignVertically);
+	SLabelProperties Props;
+	Props.m_AlignVertically = AlignVertically;
+	UI()->DoLabel(&Text, pText, Text.h * CUI::ms_FontmodHeight, TEXTALIGN_CENTER, Props);
 
 	if(MouseInsideColorPicker)
 		return 0;
@@ -305,7 +307,9 @@ int CMenus::DoButton_MenuTab(const void *pID, const char *pText, int Checked, co
 	}
 
 	Rect.HMargin(2.0f, &Temp);
-	UI()->DoLabel(&Temp, pText, Temp.h * CUI::ms_FontmodHeight, TEXTALIGN_CENTER, -1, AlignVertically);
+	SLabelProperties Props;
+	Props.m_AlignVertically = AlignVertically;
+	UI()->DoLabel(&Temp, pText, Temp.h * CUI::ms_FontmodHeight, TEXTALIGN_CENTER, Props);
 
 	return UI()->DoButtonLogic(pID, pText, Checked, pRect);
 }
@@ -335,15 +339,17 @@ int CMenus::DoButton_CheckBox_Common(const void *pID, const char *pText, const c
 	RenderTools()->DrawUIRect(&c, ColorRGBA(1, 1, 1, 0.25f * UI()->ButtonColorMul(pID)), CUI::CORNER_ALL, 3.0f);
 
 	bool CheckAble = *pBoxText == 'X';
+	SLabelProperties Props;
+	Props.m_AlignVertically = 0;
 	if(CheckAble)
 	{
 		TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGMENT);
 		TextRender()->SetCurFont(TextRender()->GetFont(TEXT_FONT_ICON_FONT));
-		UI()->DoLabel(&c, "\xEE\x97\x8D", c.h * CUI::ms_FontmodHeight, TEXTALIGN_CENTER, -1, 0);
+		UI()->DoLabel(&c, "\xEE\x97\x8D", c.h * CUI::ms_FontmodHeight, TEXTALIGN_CENTER, Props);
 		TextRender()->SetCurFont(NULL);
 	}
 	else
-		UI()->DoLabel(&c, pBoxText, c.h * CUI::ms_FontmodHeight, TEXTALIGN_CENTER, -1, 0);
+		UI()->DoLabel(&c, pBoxText, c.h * CUI::ms_FontmodHeight, TEXTALIGN_CENTER, Props);
 	TextRender()->SetRenderFlags(0);
 	UI()->DoLabel(&t, pText, c.h * CUI::ms_FontmodHeight, TEXTALIGN_LEFT);
 
@@ -589,7 +595,7 @@ int CMenus::DoValueSelector(void *pID, CUIRect *pRect, const char *pLabel, bool 
 				str_format(aBuf, sizeof(aBuf), "%d", Current);
 		}
 		RenderTools()->DrawUIRect(pRect, *Color, CUI::CORNER_ALL, Round);
-		UI()->DoLabel(pRect, aBuf, 10, TEXTALIGN_CENTER, -1);
+		UI()->DoLabel(pRect, aBuf, 10, TEXTALIGN_CENTER);
 	}
 
 	return Current;
@@ -964,7 +970,7 @@ void CMenus::RenderLoading()
 	r.y = y + 20;
 	r.w = w;
 	r.h = h - 130;
-	UI()->DoLabel(&r, pCaption, 48.0f, TEXTALIGN_CENTER, -1);
+	UI()->DoLabel(&r, pCaption, 48.0f, TEXTALIGN_CENTER);
 
 	Graphics()->TextureClear();
 	Graphics()->QuadsBegin();
@@ -1000,7 +1006,7 @@ void CMenus::RenderNews(CUIRect MainView)
 		else
 		{
 			MainView.HSplitTop(20.0f, &Label, &MainView);
-			UI()->DoLabelScaled(&Label, aLine, 15.f, TEXTALIGN_LEFT, -1);
+			UI()->DoLabelScaled(&Label, aLine, 15.f, TEXTALIGN_LEFT);
 		}
 	}
 }
@@ -1220,7 +1226,7 @@ void CMenus::RenderColorPicker()
 
 	// TODO : ALPHA SUPPORT
 	//static int ALPHAID = 0;
-	UI()->DoLabel(&ALPHARect, "A: 255", 10, TEXTALIGN_CENTER, -1);
+	UI()->DoLabel(&ALPHARect, "A: 255", 10, TEXTALIGN_CENTER);
 	RenderTools()->DrawUIRect(&ALPHARect, ColorRGBA(0, 0, 0, 0.65f), CUI::CORNER_ALL, 5.0f);
 
 	// Logic
@@ -1440,7 +1446,7 @@ int CMenus::Render()
 		else if(m_Popup == POPUP_CONNECTING)
 		{
 			pTitle = Localize("Connecting to");
-			pExtraText = g_Config.m_UiServerAddress; // TODO: query the client about the address
+			pExtraText = Client()->ServerAddress();
 			pButtonText = Localize("Abort");
 			if(Client()->MapDownloadTotalsize() > 0)
 			{
@@ -1596,8 +1602,10 @@ int CMenus::Render()
 		Box.HSplitTop(20.f / UI()->Scale(), &Part, &Box);
 		Box.HSplitTop(24.f / UI()->Scale(), &Part, &Box);
 		Part.VMargin(20.f / UI()->Scale(), &Part);
+		SLabelProperties Props;
+		Props.m_MaxWidth = (int)Part.w;
 		if(TextRender()->TextWidth(0, 24.f, pTitle, -1, -1.0f) > Part.w)
-			UI()->DoLabelScaled(&Part, pTitle, 24.f, TEXTALIGN_LEFT, (int)Part.w);
+			UI()->DoLabelScaled(&Part, pTitle, 24.f, TEXTALIGN_LEFT, Props);
 		else
 			UI()->DoLabelScaled(&Part, pTitle, 24.f, TEXTALIGN_CENTER);
 		Box.HSplitTop(20.f / UI()->Scale(), &Part, &Box);
@@ -1606,14 +1614,15 @@ int CMenus::Render()
 
 		float FontSize = m_Popup == POPUP_FIRST_LAUNCH ? 16.0f : 20.f;
 
+		Props.m_MaxWidth = (int)Part.w;
 		if(ExtraAlign == -1)
-			UI()->DoLabelScaled(&Part, pExtraText, FontSize, TEXTALIGN_LEFT, (int)Part.w);
+			UI()->DoLabelScaled(&Part, pExtraText, FontSize, TEXTALIGN_LEFT, Props);
 		else
 		{
 			if(TextRender()->TextWidth(0, FontSize, pExtraText, -1, -1.0f) > Part.w)
-				UI()->DoLabelScaled(&Part, pExtraText, FontSize, TEXTALIGN_LEFT, (int)Part.w);
+				UI()->DoLabelScaled(&Part, pExtraText, FontSize, TEXTALIGN_LEFT, Props);
 			else
-				UI()->DoLabelScaled(&Part, pExtraText, FontSize, TEXTALIGN_CENTER, -1);
+				UI()->DoLabelScaled(&Part, pExtraText, FontSize, TEXTALIGN_CENTER);
 		}
 
 		if(m_Popup == POPUP_QUIT)
@@ -1628,7 +1637,8 @@ int CMenus::Render()
 			{
 				char aBuf[256];
 				str_format(aBuf, sizeof(aBuf), "%s\n%s", Localize("There's an unsaved map in the editor, you might want to save it before you quit the game."), Localize("Quit anyway?"));
-				UI()->DoLabelScaled(&Box, aBuf, 20.f, TEXTALIGN_LEFT, Part.w - 20.0f);
+				Props.m_MaxWidth = Part.w - 20.0f;
+				UI()->DoLabelScaled(&Box, aBuf, 20.f, TEXTALIGN_LEFT, Props);
 			}
 
 			// buttons
@@ -1767,7 +1777,7 @@ int CMenus::Render()
 				Box.HSplitTop(64.f, 0, &Box);
 				Box.HSplitTop(24.f, &Part, &Box);
 				str_format(aBuf, sizeof(aBuf), "%d/%d KiB (%.1f KiB/s)", Client()->MapDownloadAmount() / 1024, Client()->MapDownloadTotalsize() / 1024, m_DownloadSpeed / 1024.0f);
-				UI()->DoLabel(&Part, aBuf, 20.f, TEXTALIGN_CENTER, -1);
+				UI()->DoLabel(&Part, aBuf, 20.f, TEXTALIGN_CENTER);
 
 				// time left
 				int TimeLeft = maximum(1, m_DownloadSpeed > 0.0f ? static_cast<int>((Client()->MapDownloadTotalsize() - Client()->MapDownloadAmount()) / m_DownloadSpeed) : 1);
@@ -1782,7 +1792,7 @@ int CMenus::Render()
 				}
 				Box.HSplitTop(20.f, 0, &Box);
 				Box.HSplitTop(24.f, &Part, &Box);
-				UI()->DoLabel(&Part, aBuf, 20.f, TEXTALIGN_CENTER, -1);
+				UI()->DoLabel(&Part, aBuf, 20.f, TEXTALIGN_CENTER);
 
 				// progress bar
 				Box.HSplitTop(20.f, 0, &Box);
@@ -1960,7 +1970,7 @@ int CMenus::Render()
 #if defined(CONF_VIDEORECORDER)
 		else if(m_Popup == POPUP_RENDER_DEMO)
 		{
-			CUIRect Label, TextBox, Ok, Abort, IncSpeed, DecSpeed, Button;
+			CUIRect Label, TextBox, Ok, Abort, IncSpeed, DecSpeed, Button, Buttons;
 
 			Box.HSplitBottom(20.f, &Box, &Part);
 #if defined(__ANDROID__)
@@ -1970,7 +1980,8 @@ int CMenus::Render()
 #endif
 			Part.VMargin(80.0f, &Part);
 
-			Part.VSplitMid(&Abort, &Ok);
+			Part.HSplitBottom(20.0f, &Part, &Buttons);
+			Buttons.VSplitMid(&Abort, &Ok);
 
 			Ok.VMargin(20.0f, &Ok);
 			Abort.VMargin(20.0f, &Abort);
@@ -2018,12 +2029,11 @@ int CMenus::Render()
 
 			float ButtonSize = 20.0f;
 			Part.VSplitLeft(113.0f, 0, &Part);
-			Part.VSplitLeft(ButtonSize, &Button, &Part);
+			Part.VSplitLeft(200.0f, &Button, &Part);
 			if(DoButton_CheckBox(&g_Config.m_ClVideoShowChat, Localize("Show chat"), g_Config.m_ClVideoShowChat, &Button))
 				g_Config.m_ClVideoShowChat ^= 1;
-			Part.VSplitLeft(112.0f, 0, &Part);
-			Part.VSplitLeft(ButtonSize, &Button, &Part);
-			if(DoButton_CheckBox(&g_Config.m_ClVideoSndEnable, Localize("Use sounds"), g_Config.m_ClVideoSndEnable, &Button))
+			Part.VSplitLeft(32.0f, 0, &Part);
+			if(DoButton_CheckBox(&g_Config.m_ClVideoSndEnable, Localize("Use sounds"), g_Config.m_ClVideoSndEnable, &Part))
 				g_Config.m_ClVideoSndEnable ^= 1;
 
 			Box.HSplitBottom(20.f, &Box, &Part);
@@ -2061,9 +2071,8 @@ int CMenus::Render()
 			else if(DecDemoSpeed)
 				m_Speed = clamp(m_Speed - 1, 0, (int)(sizeof(g_aSpeeds) / sizeof(g_aSpeeds[0]) - 1));
 
-			Part.VSplitLeft(107.0f, 0, &Part);
-			Part.VSplitLeft(ButtonSize, &Button, &Part);
-			if(DoButton_CheckBox(&g_Config.m_ClVideoShowhud, Localize("Show ingame HUD"), g_Config.m_ClVideoShowhud, &Button))
+			Part.VSplitLeft(207.0f, 0, &Part);
+			if(DoButton_CheckBox(&g_Config.m_ClVideoShowhud, Localize("Show ingame HUD"), g_Config.m_ClVideoShowhud, &Part))
 				g_Config.m_ClVideoShowhud ^= 1;
 
 			Box.HSplitBottom(20.f, &Box, &Part);
@@ -2186,7 +2195,9 @@ int CMenus::Render()
 			TextBox.VSplitRight(60.0f, &TextBox, 0);
 			UI()->DoLabel(&Label, Localize("Nickname"), 16.0f, TEXTALIGN_LEFT);
 			static float s_Offset = 0.0f;
-			UIEx()->DoEditBox(&g_Config.m_PlayerName, &TextBox, g_Config.m_PlayerName, sizeof(g_Config.m_PlayerName), 12.0f, &s_Offset, false, CUI::CORNER_ALL, Client()->PlayerName());
+			SUIExEditBoxProperties EditProps;
+			EditProps.m_pEmptyText = Client()->PlayerName();
+			UIEx()->DoEditBox(&g_Config.m_PlayerName, &TextBox, g_Config.m_PlayerName, sizeof(g_Config.m_PlayerName), 12.0f, &s_Offset, false, CUI::CORNER_ALL, EditProps);
 		}
 		else if(m_Popup == POPUP_POINTS)
 		{
@@ -2670,7 +2681,7 @@ void CMenus::RenderUpdating(const char *pCaption, int current, int total)
 	r.y = y + 20;
 	r.w = w;
 	r.h = h;
-	UI()->DoLabel(&r, Localize(pCaption), 32.0f, TEXTALIGN_CENTER, -1);
+	UI()->DoLabel(&r, Localize(pCaption), 32.0f, TEXTALIGN_CENTER);
 
 	if(total > 0)
 	{
